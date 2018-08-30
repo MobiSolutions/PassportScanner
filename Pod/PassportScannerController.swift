@@ -14,19 +14,19 @@ import UIImage_Resize
 import AVFoundation
 
 open class PassportScannerController: UIViewController, G8TesseractDelegate {
-
+    
     /// Set debug to true if you want to see what's happening
     public var debug = false
-
+    
     /// Set accuracy that is required for the scan. 1 = all checksums should be ok
     public var accuracy: Float = 1
-
+    
     /// When you create your own view, then make sure you have a GPUImageView that is linked to this
     @IBOutlet var renderView: RenderView!
-
+    
     /// For capturing the video and passing it on to the filters.
     var camera: Camera!
-
+    
     // Quick reference to the used filter configurations
     var exposure = ExposureAdjustment()
     var highlightShadow = HighlightsAndShadows()
@@ -35,48 +35,48 @@ open class PassportScannerController: UIViewController, G8TesseractDelegate {
     var adaptiveThreshold = AdaptiveThreshold()
     var crop = Crop()
     var averageColor = AverageColorExtractor()
-
+    
     var pictureOutput = PictureOutput()
-
+    
     /// The tesseract OCX engine
     var tesseract: G8Tesseract = G8Tesseract(language: "eng")
-
+    
     /**
-    Rotation is not needed.
-
-    :returns: Returns .portrait
-    */
+     Rotation is not needed.
+     
+     :returns: Returns .portrait
+     */
     override open var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         get { return .portrait }
     }
     /**
-    Hide the status bar during scan
-
-    :returns: true to indicate the statusbar should be hidden
-    */
+     Hide the status bar during scan
+     
+     :returns: true to indicate the statusbar should be hidden
+     */
     override open var prefersStatusBarHidden: Bool {
         get { return true }
     }
     
     /**
-    Initialize all graphic filters in the viewDidLoad
-    */
+     Initialize all graphic filters in the viewDidLoad
+     */
     open override func viewDidLoad() {
         super.viewDidLoad()
         self.view.backgroundColor = UIColor.white
-
-       // Filter settings
+        
+        // Filter settings
         exposure.exposure = 0.7 // -10 - 10
         highlightShadow.highlights  = 0.6 // 0 - 1
         saturation.saturation  = 0.6 // 0 - 2
         contrast.contrast = 2.0  // 0 - 4
-        adaptiveTreshold.blurRadiusInPixels = 8.0
-
+        adaptiveThreshold.blurRadiusInPixels = 8.0
+        
         // Specify the crop region that will be used for the OCR
         crop.cropSizeInPixels = Size(width: 350, height: 1800)
         crop.locationOfCropInPixels = Position(350, 60, nil)
         crop.overriddenOutputRotation = .rotateClockwise
-
+        
         // Try to dynamically optimize the exposure based on the average color
         averageColor.extractedColorCallback = { color in
             let lighting = color.blueComponent + color.greenComponent + color.redComponent
@@ -95,7 +95,7 @@ open class PassportScannerController: UIViewController, G8TesseractDelegate {
                 self.exposure.exposure = -2
             }
         }
-
+        
         // download trained data to tessdata folder for language from:
         // https://code.google.com/p/tesseract-ocr/downloads/list
         // ocr trained data is available in:    ;)
@@ -106,7 +106,7 @@ open class PassportScannerController: UIViewController, G8TesseractDelegate {
         self.tesseract.setVariableValue("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ<", forKey: "tessedit_char_whitelist")
         self.tesseract.delegate = self
         self.tesseract.rect = CGRect(x: 0, y: 0, width: 900, height: 175)
-
+        
         // see http://www.sk-spell.sk.cx/tesseract-ocr-en-variables
         self.tesseract.setVariableValue("1", forKey: "tessedit_serial_unlv")
         self.tesseract.setVariableValue("FALSE", forKey: "x_ht_quality_check")
@@ -119,40 +119,40 @@ open class PassportScannerController: UIViewController, G8TesseractDelegate {
         self.tesseract.setVariableValue("FALSE", forKey: "load_bigram_dawg")
         self.tesseract.setVariableValue("FALSE", forKey: "wordrec_enable_assoc")
     }
-
+    
     open override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         do {
             // Initialize the camera
-            camera = try Camera(sessionPreset:AVCaptureSession.Preset.hd1920x1080.rawValue)
+            camera = try Camera(sessionPreset:AVCaptureSession.Preset(rawValue: AVCaptureSession.Preset.hd1920x1080.rawValue))
             camera.location = PhysicalCameraLocation.backFacing
             
             // Chain the filter to the render view
-            camera --> exposure  --> highlightShadow  --> saturation --> contrast --> adaptiveTreshold --> renderView
+            camera --> exposure  --> highlightShadow  --> saturation --> contrast --> adaptiveThreshold --> renderView
             
             // Use the same chained filters and forward these to 2 other filters
-            adaptiveTreshold --> crop --> averageColor
+            adaptiveThreshold --> crop --> averageColor
         } catch {
             fatalError("Could not initialize rendering pipeline: \(error)")
         }
     }
     
     open func preprocessedImage(for tesseract: G8Tesseract!, sourceImage: UIImage!) -> UIImage! {
-        // sourceImage is the same image you sent to Tesseract above. 
-        // Processing is already done in dynamic filters    
+        // sourceImage is the same image you sent to Tesseract above.
+        // Processing is already done in dynamic filters
         return sourceImage
     }
     
     
     /**
-    call this from your code to start a scan immediately or hook it to a button.
-
-    :param: sender The sender of this event
-    */
+     call this from your code to start a scan immediately or hook it to a button.
+     
+     :param: sender The sender of this event
+     */
     @IBAction open func StartScan(sender: AnyObject) {
         self.view.backgroundColor = UIColor.black
         camera.startCapture()
-
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             print("Start OCR")
             self.pictureOutput = PictureOutput()
@@ -167,23 +167,23 @@ open class PassportScannerController: UIViewController, G8TesseractDelegate {
             self.crop --> self.pictureOutput
         }
     }
-
+    
     /**
-    call this from your code to stop a scan or hook it to a button
-
-    :param: sender the sender of this event
-    */
+     call this from your code to stop a scan or hook it to a button
+     
+     :param: sender the sender of this event
+     */
     @IBAction open func StopScan(sender: AnyObject) {
         self.view.backgroundColor = UIColor.white
         camera.stopCapture()
-        abbortScan()
+        abortScan()
     }
-
-
-
+    
+    
+    
     /**
      Processing the image
-
+     
      - parameter sourceImage: The image that needs to be processed
      */
     open func processImage(sourceImage: UIImage) -> Bool {
@@ -201,24 +201,24 @@ open class PassportScannerController: UIViewController, G8TesseractDelegate {
         
         // Perform the OCR scan
         let result: String = self.doOCR(image: image)
-
+        
         // Create the MRZ object and validate if it's OK
         let mrz = MRZ(scan: result, debug: self.debug)
         if  mrz.isValid < self.accuracy {
             print("Scan quality insufficient : \(mrz.isValid)")
         } else {
             self.camera.stopCapture()
-            self.succesfullScan(mrz: mrz)
+            self.successfulScan(mrz: mrz)
             return true
         }
         return false
     }
-
+    
     /**
      Perform the tesseract OCR on an image.
-
+     
      - parameter image: The image to be scanned
-
+     
      - returns: The OCR result
      */
     open func doOCR(image: UIImage) -> String {
@@ -230,22 +230,22 @@ open class PassportScannerController: UIViewController, G8TesseractDelegate {
         result = self.tesseract.recognizedText
         //tesseract = nil
         G8Tesseract.clearCache()
-        print("Scan result : \(result)")
+        print("Scan result : \(result ?? "N/A")")
         return result ?? ""
     }
-
+    
     /**
-    Override this function in your own class for processing the result
-
-    :param: mrz The MRZ result
-    */
+     Override this function in your own class for processing the result
+     
+     :param: mrz The MRZ result
+     */
     open func successfulScan(mrz: MRZ) {
         assertionFailure("You should overwrite this function to handle the scan results")
     }
-
+    
     /**
-    Override this function in your own class for processing a cancel
-    */
+     Override this function in your own class for processing a cancel
+     */
     open func abortScan() {
         assertionFailure("You should overwrite this function to handle an abort")
     }
@@ -265,7 +265,7 @@ extension UIImage {
         rect.origin = .zero
         
         let renderer = UIGraphicsImageRenderer(size: rect.size)
-
+        
         return renderer.image { renderContext in
             renderContext.cgContext.translateBy(x: rect.midX, y: rect.midY)
             renderContext.cgContext.rotate(by: CGFloat(degrees * .pi / 180.0))
